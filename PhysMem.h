@@ -22,6 +22,9 @@ public:
     // Call this to map a region of physical address space into user-space
     bool    map(uint64_t physAddr, size_t size);
 
+    // Automatically maps the region define with "memmap=" in /proc/cmdline
+    bool    map();
+
     // Call these to return either a void* or a byte* in user-space
     uint8_t* bptr() {return (uint8_t*)userspaceAddr_;}
     void*    vptr() {return userspaceAddr_;}

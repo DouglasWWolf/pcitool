@@ -13,7 +13,7 @@ int main()
 
    }
    
-   if (!mem.map(0x100000000, 4096))
+   if (!mem.map())
    {
       printf("Error : %s\n", mem.error());
    }
