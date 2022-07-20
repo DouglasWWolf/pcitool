@@ -42,7 +42,7 @@ bool PhysMem::map(uint64_t physAddr, size_t size)
     // Map the memory
     void* ptr = mmap(0, size, protection, MAP_SHARED, fd, physAddr);
 
-    // If mapping into user-space faile,d tell the caller
+    // If mapping into user-space failed tell the caller
     if (ptr == MAP_FAILED)
     {
         result = false;
