@@ -22,15 +22,22 @@ public:
     // Call this to map a region of physical address space into user-space
     bool    map(uint64_t physAddr, size_t size);
 
+    // Call these to return either a void* or a byte* in user-space
+    uint8_t* bptr() {return (uint8_t*)userspaceAddr_;}
+    void*    vptr() {return userspaceAddr_;}
+
     // Unmaps the address space if one has been mapped
     void    unmap();
 
+    // Fetches an error message after a failed "map()"
+    const char* error() {return errorMsg_;}
+
 protected:
 
-    // An ASCII error message if "open" fails
+    // An ASCII error message if "map()" fails
     char    errorMsg_[256];
 
-    // If this is not null or (void*)(-1), it contains a pointer to the mapped addresses
+    // If this is not null, it contains a pointer to the mapped addresses
     void*   userspaceAddr_;
 
     // This is the size of the address spaces that has been mapped into user-space

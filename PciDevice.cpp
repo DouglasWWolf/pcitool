@@ -11,8 +11,6 @@
 #include "PciDevice.h"
 using namespace std;
 
-// When ::mmap fails, this is what it returns
-static const uint8_t* MMAP_ERROR = (uint8_t*)-1;
 
 //=================================================================================================
 // mapResources() - Maps each memory-mappable resource for this device into user-space
@@ -46,16 +44,19 @@ bool PciDevice::mapResources()
     for (auto& bar : resource_)
     {
         // Map the resources of this PCI device's BAR into our user-space memory map
-        bar.baseAddr = (uint8_t*)::mmap(0, bar.size, protection, MAP_SHARED, fd, bar.physAddr);
+        void* ptr = ::mmap(0, bar.size, protection, MAP_SHARED, fd, bar.physAddr);
 
         // If a mapping error occurs, unmap anything we already have mapped
-        if (bar.baseAddr == MMAP_ERROR)
+        if (ptr == MAP_FAILED)
         {
             sprintf(errorMsg_, "mmap failed on 0x%lx for size 0x%lx", bar.physAddr, bar.size);
             close();
             result = false;
             break;
         }
+
+        // Otherwise, save the user-space address that our PCI resource is mapped to
+        else bar.baseAddr = (uint8_t*)ptr;
     }
 
     // Clean up after ourselves
@@ -95,14 +96,10 @@ static int getIntegerFromFile(string filename)
 //=================================================================================================
 void PciDevice::close()
 {
-    // Loop through each resource slot...
+    // Loop through each resource slot, and if it's memory mapped, unmap it
     for (auto& resource : resource_)
     {
-        // If this resource is memory mapped, un-map it
-        if (resource.baseAddr != 0 && resource.baseAddr != MMAP_ERROR)
-        {
-            munmap(resource.baseAddr, resource.size); 
-        }        
+        if (resource.baseAddr) munmap(resource.baseAddr, resource.size); 
     }
 
     // Delete the list of memory-mapped resources

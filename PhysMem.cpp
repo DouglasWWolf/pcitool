@@ -8,6 +8,14 @@
 #include "PhysMem.h"
 
 
+//=================================================================================================
+// map() - Maps the specified physical address into user-space
+//
+// Passed: physAddr = The physical address to map into user-space
+//         size     = The size of the region to map, in bytes
+//
+// Returns: true on success, otherwise false
+//=================================================================================================
 bool PhysMem::map(uint64_t physAddr, size_t size)
 {
     const char* filename = "/dev/mem";
@@ -31,24 +39,48 @@ bool PhysMem::map(uint64_t physAddr, size_t size)
         return false;        
     }
 
+    // Map the memory
+    void* ptr = mmap(0, size, protection, MAP_SHARED, fd, physAddr);
+
+    // If mapping into user-space faile,d tell the caller
+    if (ptr == MAP_FAILED)
+    {
+        result = false;
+        sprintf(errorMsg_, "mmap failed");        
+    }
+
+    // Otherwise, that mapping succeeded.  Record the userspace address and region size
+    else
+    {
+        userspaceAddr_ = ptr;        
+        mappedSize_    = size;
+    }
+
+
+    // We're done with "/dev/mem"
+    ::close(fd);
 
     // Tell the caller whether or not this succeeded
     return result;
 
 }
+//=================================================================================================
 
 
 //=================================================================================================
 // unmap() - Checks to see if physical address space has been mapped into user-space [i.e., there
-//           was a succesfull call to 'open()'], and if so, unmaps it
+//           was a succesfull call to 'map()'], and if so, unmaps it
 //=================================================================================================
 void PhysMem::unmap()
 {
-    if (userspaceAddr_ && userspaceAddr_ != MAP_FAILED)
+    // If we have a valid user-space address, we need to unmap that memory
+    if (userspaceAddr_)
     {
         munmap(userspaceAddr_, mappedSize_);
-        userspaceAddr_ = nullptr;
-        mappedSize_    = 0;
     }
+
+    // Indicate that we no longer have any memory mapped
+    userspaceAddr_ = nullptr;
+    mappedSize_    = 0;
 }
 //=================================================================================================

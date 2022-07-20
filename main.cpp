@@ -1,8 +1,9 @@
 #include <unistd.h>
 #include <stdio.h>
 #include "PciDevice.h"
-
+#include "PhysMem.h"
 PciDevice pci;
+PhysMem   mem;
 
 int main()
 {
@@ -12,6 +13,18 @@ int main()
 
    }
    
+   if (!mem.map(0x100000000, 4096))
+   {
+      printf("Error : %s\n", mem.error());
+   }
+
+   uint32_t* p = (uint32_t*)mem.vptr();
+
+   *p = 0x1234F0F0;
+   exit(1);
+
+
+   #if 0
    auto bar = pci.resourceList();
    uint32_t* control = (uint32_t*)bar[0].baseAddr;
 
@@ -25,4 +38,6 @@ int main()
       *control = 0;
       usleep(500000);
    }
+
+   #endif
 }
