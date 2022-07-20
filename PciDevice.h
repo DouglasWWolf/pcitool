@@ -45,9 +45,6 @@ protected:
     // Contains one entry for each resource (i.e, BAR) that is configured in the PCI device
     std::vector<resource_t> resource_;
 
-    // This gets called in order to memory map PCI device resources into user-space
-    bool    mapResource(std::string deviceName, int index);
-
     // Contains the error message after a call to "open" fails
     char    errorMsg_[256];
 };
