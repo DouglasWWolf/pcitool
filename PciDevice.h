@@ -21,6 +21,9 @@ public:
     // Opens a connection to a PCIe device
     bool    open(int vendorID, int deviceID, int barCount, std::string deviceDir = "");
 
+    // Fetches the pointer to the beginning of an addressable region of this device
+    uint8_t* bar(int i) {return resource_[i].baseAddress;}
+
     // Stop access to the PCI device
     void    close();
 

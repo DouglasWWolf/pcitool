@@ -70,6 +70,8 @@ bool PciDevice::mapResource(string deviceName, int index)
     // Save the information about this PCI device resource for future use
     resource_[index] = {(uint8_t*)baseAddr, resourceSize};
 
+    printf("Mapped 0x%lX bytes at 0x%lX\n", resourceSize, (unsigned long)baseAddr);
+
     // Tell the caller that all is well
     return true;
 }
