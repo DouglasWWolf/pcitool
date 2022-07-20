@@ -8,7 +8,7 @@
 #include "PhysMem.h"
 
 
-bool PhysMem::map(uint64_t address, size_t size)
+bool PhysMem::map(uint64_t physAddr, size_t size)
 {
     const char* filename = "/dev/mem";
 

@@ -20,7 +20,7 @@ public:
     ~PhysMem() {unmap();}
 
     // Call this to map a region of physical address space into user-space
-    bool    map(uint64_t address, size_t size);
+    bool    map(uint64_t physAddr, size_t size);
 
     // Unmaps the address space if one has been mapped
     void    unmap();
