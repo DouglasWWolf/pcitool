@@ -10,12 +10,14 @@ int main()
    if (!pci.open(0x10ee, 0x903f))
    {
       printf("Error : %s\n", pci.error());
+      exit(1);
 
    }
    
    if (!mem.map())
    {
       printf("Error : %s\n", mem.error());
+      exit(1);
    }
 
    uint32_t* p = (uint32_t*)mem.vptr();

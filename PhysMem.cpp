@@ -12,6 +12,47 @@
 using namespace std;
 
 
+
+//=================================================================================================
+// parseKMG() - Examines a string for a delimeter, and parses the integer immediately after 
+//              the delimeter.  Looks for the character after the digits, expect to find a K, M,
+//              or G (meaning Kilo, Mega, or Giga) and returns the parsed value.
+//
+//              Example:  4G = 0x1_0000_0000
+//                        2K = 0x400
+//                        3M = 0x30_0000
+//
+// If the delimieter is not found or the string is malformed in some way, returns -1
+//=================================================================================================
+static int64_t parseKMG(const char delimeter, const char* ptr)
+{
+    // Look for the delimeter in the string the user gave us
+    ptr = strchr(ptr, delimeter);
+
+    // If the delimeter didn't exist, tell the caller
+    if (ptr == nullptr) return -1;
+
+    // Point to the character after the delimeter
+    ++ptr;
+
+    // Convert the ASCII digits that follow the delimeter to an integer
+    int64_t value = strtol(ptr, 0, 0);
+
+    // Skip over all of the ASCII digits
+    while (*ptr >= '0' && *ptr <= '9') ++ptr;
+
+    // Return the appropriate scaled integer value
+    if (*ptr == 'K') return value * 1024;
+    if (*ptr == 'M') return value * 1024 * 1024;
+    if (*ptr == 'G') return value * 1024 * 1024 * 1024;
+
+    // If we get here, there wasn't a K, M, or G after the numeric value
+    return -1;
+}
+//=================================================================================================
+
+
+
 //=================================================================================================
 // map() - Maps the specified physical address into user-space
 //
@@ -106,21 +147,21 @@ bool PhysMem::map()
         return false;        
     }
 
-    // Skip forward to the character after the '=' 
-    p = p + 7;
+    // Fetch the value after the '='
+    int64_t size = parseKMG('=', p);
 
-    // Fetch the size of the region (though we don't yet know the units)
-    int size = strtol(p, 0, 0);
+    // Fetch the value after the '$'
+    int64_t physAddr = parseKMG('$', p);
 
-    // Skip over the ASCII digits of the size
-    while (*p >= '0' && *p <= '9') ++p;
+    // If we couldn't parse one of those values, /proc/cmdline is malformed
+    if (physAddr < 0 || size < 0)
+    {
+        sprintf(errorMsg_, "malformed %s", filename);
+        return false;        
+    }
 
-    printf("%s\n", p);
-
-    exit(1);
-
-
-
+    // Now go map this physical address into user-space
+    return map(physAddr, size);
 }
 //=================================================================================================
 
