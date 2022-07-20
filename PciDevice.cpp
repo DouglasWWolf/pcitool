@@ -37,6 +37,7 @@ bool PciDevice::mapResources()
     // If that open failed, we're done here
     if (fd < 0)
     {
+        close();
         sprintf(errorMsg_, "Can't open %s", filename);
         return false;        
     }
@@ -60,7 +61,7 @@ bool PciDevice::mapResources()
     // Clean up after ourselves
     ::close(fd);
 
-    // And tell the caller whether all of this device's PCI resources got mapped into userspace
+    // And tell the caller whether all of this device's PCI resources got mapped into user-space
     return result;
 }
 //=================================================================================================
