@@ -3,14 +3,15 @@
 //=================================================================================================
 #pragma once
 #include <string>
+#include <vector>
 
 class PciDevice
 {
 public:
-    
-    // Constructor
-    PciDevice();
-    
+   
+    // Default constructor
+    PciDevice() {};
+
     // Destructor
     ~PciDevice() {close();}
 
@@ -18,12 +19,15 @@ public:
     PciDevice (const PciDevice&) = delete;
     PciDevice& operator= (const PciDevice&) = delete;
 
+    // These each describe a memory mapped resource from a PCI device
+    struct resource_t {uint8_t* baseAddr; size_t size; off_t physAddr;};
+
     // Opens a connection to a PCIe device
-    bool    open(int vendorID, int deviceID, int barCount, std::string deviceDir = "");
+    bool    open(int vendorID, int deviceID, std::string deviceDir = "");
 
-    // Fetches the pointer to the beginning of an addressable region of this device
-    uint8_t* bar(int i) {return resource_[i].baseAddress;}
-
+    // Fetches the list of memory mappable resources
+    std::vector<resource_t>& resourceList() {return resource_;}
+    
     // Stop access to the PCI device
     void    close();
 
@@ -32,15 +36,18 @@ public:
 
 protected:
 
-    // A PCIe device can have a maximum of 3 64-bit base-address registers    
-    static const int MAX_BARS = 3;
+    // Fetches the list of memory-mappable resources
+    std::vector<resource_t> getResourceList(std::string deviceDir);
+
+    // Memory maps the resources whose definitions are in resource_
+    bool    mapResources();
+
+    // Contains one entry for each resource (i.e, BAR) that is configured in the PCI device
+    std::vector<resource_t> resource_;
 
     // This gets called in order to memory map PCI device resources into user-space
     bool    mapResource(std::string deviceName, int index);
 
     // Contains the error message after a call to "open" fails
     char    errorMsg_[256];
-
-    // These each describe a memory mapped resource from a PCI device
-    struct {uint8_t* baseAddress; size_t size;} resource_[MAX_BARS]; 
 };

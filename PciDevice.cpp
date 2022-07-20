@@ -5,6 +5,7 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <string.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -12,11 +13,68 @@
 #include "PciDevice.h"
 using namespace std;
 
+// When ::mmap fails, this is what it returns
+static const uint8_t* MMAP_ERROR = (uint8_t*)-1;
+
+//=================================================================================================
+// mapResources() - Maps each memory-mappable resource for this device into user-space
+//
+// On Entry: resource_ = list of memory-mappable resources (the phys addr and the size)
+//
+// On Exit:  resource_ = each entry has userspace "baseAddr" filled in
+//=================================================================================================
+bool PciDevice::mapResources()
+{
+    const char* filename = "/dev/mem";
+
+    // Assume for a moment that this routine will succeed
+    bool result = true;
+
+    // These are the memory protection flags we'll use when mapping the device into memory
+    const int protection = PROT_READ | PROT_WRITE;
+
+    // Open the /dev/mem device
+    int fd = ::open(filename, O_RDWR| O_SYNC);
+
+    // If that open failed, we're done here
+    if (fd < 0)
+    {
+        sprintf(errorMsg_, "Can't open %s", filename);
+        return false;        
+    }
+
+    // Loop through each entry in the list of memory-mappable resources for this PCI device
+    for (auto& bar : resource_)
+    {
+        // Map the resources of this PCI device's BAR into our user-space memory map
+        bar.baseAddr = (uint8_t*)::mmap(0, bar.size, protection, MAP_SHARED, fd, bar.physAddr);
+
+        // If a mapping error occurs, unmap anything we already have mapped
+        if (bar.baseAddr == MMAP_ERROR)
+        {
+            sprintf(errorMsg_, "mmap failed on 0x%lx for size 0x%lx", bar.physAddr, bar.size);
+            close();
+            result = false;
+            break;
+        }
+    }
+
+    // Clean up after ourselves
+    ::close(fd);
+
+    // And tell the caller whether all of this device's PCI resources got mapped into userspace
+    return result;
+}
+//=================================================================================================
+
+
+
+
 //=================================================================================================
 // mapResource() - Maps a PCI resource (which corresponse to a PCI BAR) into our memory space
 //
-// On Exit: resource_[index].baseAddress = The base address in user-space of this resource 
-//          resource_[index].size        = The size (in bytes) of that memory-mapped space
+// On Exit: resource_[index].baseAddr = The base address in user-space of this resource 
+//          resource_[index].size     = The size (in bytes) of that memory-mapped space
 //
 // If this function returns false, an error string is in errorMsg_
 //=================================================================================================
@@ -70,8 +128,6 @@ bool PciDevice::mapResource(string deviceName, int index)
     // Save the information about this PCI device resource for future use
     resource_[index] = {(uint8_t*)baseAddr, resourceSize};
 
-    printf("Mapped 0x%lX bytes at 0x%lX\n", resourceSize, (unsigned long)baseAddr);
-
     // Tell the caller that all is well
     return true;
 }
@@ -87,7 +143,7 @@ static int getIntegerFromFile(string filename)
 {
     string line;
    
-    // Open the vendor file for this PCI device
+    // Open the specified file.  It will contain a line of ASCII data
     ifstream file(filename);
 
     // If we couldn't open the file, hand the caller an invalid value   
@@ -102,18 +158,6 @@ static int getIntegerFromFile(string filename)
 //=================================================================================================
 
 
-
-//=================================================================================================
-// Constructor
-//=================================================================================================
-PciDevice::PciDevice()
-{
-    // Mark the memory mapped PCIe resources as "released"
-    for (auto& resource : resource_) resource.baseAddress = nullptr;
-}
-//=================================================================================================
-
-
 //=================================================================================================
 // close() - Unmap any memory mapped resources from this PCI device
 //=================================================================================================
@@ -123,14 +167,81 @@ void PciDevice::close()
     for (auto& resource : resource_)
     {
         // If this resource is memory mapped, un-map it
-        if (resource.baseAddress)
+        if (resource.baseAddr != 0 && resource.baseAddr != MMAP_ERROR)
         {
-            munmap(resource.baseAddress, resource.size); 
-            resource.baseAddress = nullptr;           
+            munmap(resource.baseAddr, resource.size); 
         }        
     }
+
+    // Delete the list of memory-mapped resources
+    resource_.clear();
 }
 //=================================================================================================
+
+
+
+//=================================================================================================
+// getResourceList() - Returns a vector of resource_t entries that describe each memory-mappable
+//                     resource (i.e., BAR) that this PCI device supports
+//
+// On Entry: deviceDir = the name of the device directory that contains the "resource" file
+//
+// If this routine returns an empty vector, errorMsg_ will contain the appropriate error message
+//
+// Notes: The resource file will contain 1 line of ASCII data for each potential mappable resource.
+//        Each line contains 3 fields separated one space character:
+//           (1) The physical starting address of the memory mapped resource
+//           (2) The physical ending address of the memory mapped resource
+//           (3) A set of flags that we don't care about    
+//=================================================================================================
+std::vector<PciDevice::resource_t> PciDevice::getResourceList(std::string deviceDir)
+{
+    string             line;
+    vector<resource_t> result;
+    
+    // This file will contain 1 line per potential resource
+    string filename = deviceDir + "/resource";
+
+    // Open the specified file  
+    ifstream file(filename);
+
+    // If we couldn't open the file, hand the caller an invalid value   
+    if (!file.is_open()) 
+    {
+        sprintf(errorMsg_, "Can't open %s", filename.c_str());
+        return result;
+    }
+    
+    // Loop through each line of the file...
+    while (getline(file, line))
+    {
+        // Get pointers to the 1st and 2nd text fields of that line
+        const char* p1 = line.c_str();
+        const char* p2 = strchr(p1, ' ');
+        
+        // Parse the physical starting and ending address of this memory-mappable resource
+        off_t starting_address = strtol(p1, 0, 0);
+        off_t ending_address   = strtol(p2, 0, 0);
+
+        // A starting address of 0 means "this line doesn't define a memory-mappable resource"
+        if (starting_address == 0) continue;
+
+        // Compute how many bytes long that memory region is
+        size_t size = ending_address - starting_address + 1;
+
+        // Append the description of this mappable resource into our result vector        
+        result.push_back({0, size, starting_address});
+    }
+
+    // If there are no memory-mappable resources, create an error message
+    if (result.empty()) sprintf(errorMsg_, "Device contains no memory-mappable resources");
+
+    // Hand the caller the list of resources that can be memory mapped for this PCI device
+    return result;
+}
+//=================================================================================================
+
+
 
 
 //=================================================================================================
@@ -138,7 +249,6 @@ void PciDevice::close()
 //
 // Passed: vendorID  = The vendor ID of the PCIe device we're looking for
 //         deviceID  = The device ID of the PCIe device we're looking for
-//         barCount  = The number of BARs (Base Address Registers) this device supports
 //         deviceDir = Name of the file-system directory where PCI device information can
 //                     be found.   If empty-string, a sensible default is used
 //
@@ -146,7 +256,7 @@ void PciDevice::close()
 //
 // Note:    If this routine returns 'false', an ASCII error message is in errorMsg_
 //=================================================================================================
-bool PciDevice::open(int vendorID, int deviceID, int barCount, string deviceDir)
+bool PciDevice::open(int vendorID, int deviceID, string deviceDir)
 {
     string  dirName;
 
@@ -155,13 +265,6 @@ bool PciDevice::open(int vendorID, int deviceID, int barCount, string deviceDir)
 
     // If we already have a PCIe device mapped, unmap it
     close();
-
-    // Ensure that the number of BARs we should discover is reasonable
-    if (barCount < 1 || barCount > MAX_BARS)
-    {
-        sprintf(errorMsg_, "Invalid BAR count (%i)", barCount);
-        return false;    
-    }
 
     // If the caller didn't specify a device-directory, use the default
     if (deviceDir.empty()) deviceDir = "/sys/bus/pci/devices";
@@ -195,13 +298,13 @@ bool PciDevice::open(int vendorID, int deviceID, int barCount, string deviceDir)
         return false;
     }
 
-    // Memory map each of the PCI device resources the caller asked us to
-    for (int i=0; i<barCount; ++i) 
-    {
-        if (!mapResource(dirName, i)) return false;
-    }
+    // Fetch the physical address and size of each resource (i.e. BAR) that device supports
+    resource_ = getResourceList(dirName);
 
-    // Tell the caller that all is well
-    return true;
+    // If there are no memory-mappable resources for this PCI device, tell the caller
+    if (resource_.empty()) return false;
+
+    // Memory map each of the PCI device resources the caller asked us to
+    return mapResources();
 }
 //=================================================================================================
