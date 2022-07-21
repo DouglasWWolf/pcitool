@@ -127,7 +127,7 @@ bool PhysMem::map()
     // Open the specified file.  It will contain a line of ASCII data
     ifstream file(filename);
 
-    // If we couldn't open the file, hand the caller an invalid value   
+    // If we couldn't open the file, tell the caller
     if (!file.is_open())
     {
         sprintf(errorMsg_, "Can't open %s", filename);
