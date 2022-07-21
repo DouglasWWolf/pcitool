@@ -11,7 +11,7 @@
 #include "PhysMem.h"
 using namespace std;
 
-
+#define MALFORMED 0xFFFFFFFFFFFFFFFF
 
 //=================================================================================================
 // parseKMG() - Examines a string for a delimeter, and parses the integer immediately after 
@@ -24,13 +24,13 @@ using namespace std;
 //
 // If the delimieter is not found or the string is malformed in some way, returns -1
 //=================================================================================================
-static int64_t parseKMG(const char delimeter, const char* ptr)
+static uint64_t parseKMG(const char delimeter, const char* ptr)
 {
     // Look for the delimeter in the string the user gave us
     ptr = strchr(ptr, delimeter);
 
     // If the delimeter didn't exist, tell the caller
-    if (ptr == nullptr) return -1;
+    if (ptr == nullptr) return MALFORMED;
 
     // Point to the character after the delimeter
     ++ptr;
@@ -47,7 +47,7 @@ static int64_t parseKMG(const char delimeter, const char* ptr)
     if (*ptr == 'G') return value * 1024 * 1024 * 1024;
 
     // If we get here, there wasn't a K, M, or G after the numeric value
-    return -1;
+    return MALFORMED;
 }
 //=================================================================================================
 
@@ -148,13 +148,13 @@ bool PhysMem::map()
     }
 
     // Fetch the value after the '='
-    int64_t size = parseKMG('=', p);
+    uint64_t size = parseKMG('=', p);
 
     // Fetch the value after the '$'
-    int64_t physAddr = parseKMG('$', p);
+    uint64_t physAddr = parseKMG('$', p);
 
     // If we couldn't parse one of those values, /proc/cmdline is malformed
-    if (physAddr < 0 || size < 0)
+    if (physAddr == MALFORMED || size == MALFORMED)
     {
         sprintf(errorMsg_, "malformed %s", filename);
         return false;        
@@ -173,10 +173,7 @@ bool PhysMem::map()
 void PhysMem::unmap()
 {
     // If we have a valid user-space address, we need to unmap that memory
-    if (userspaceAddr_)
-    {
-        munmap(userspaceAddr_, mappedSize_);
-    }
+    if (userspaceAddr_) munmap(userspaceAddr_, mappedSize_);
 
     // Indicate that we no longer have any memory mapped
     userspaceAddr_ = nullptr;
