@@ -148,10 +148,10 @@ bool PhysMem::map()
     }
 
     // Fetch the value after the '='
-    uint64_t size = parseKMG('=', p);
+    auto size = parseKMG('=', p);
 
     // Fetch the value after the '$'
-    uint64_t physAddr = parseKMG('$', p);
+    auto physAddr = parseKMG('$', p);
 
     // If we couldn't parse one of those values, /proc/cmdline is malformed
     if (physAddr == MALFORMED || size == MALFORMED)
