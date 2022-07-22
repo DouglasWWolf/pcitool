@@ -203,3 +203,15 @@ debug:
 	@echo "C_OBJ         = ${C_OBJ}"
 	@echo "CPP_OBJ       = ${CPP_OBJ}"
 	@echo "OBJ_FILES     = ${OBJ_FILES}"
+
+
+
+# DO NOT DELETE
+
+obj_x86/PciDevice.o: PciDevice.h
+obj_x86/PhysMem.o: PhysMem.h
+obj_x86/main.o: PciDevice.h PhysMem.h
+
+obj_arm/PciDevice.o: PciDevice.h
+obj_arm/PhysMem.o: PhysMem.h
+obj_arm/main.o: PciDevice.h PhysMem.h
