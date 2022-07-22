@@ -1,13 +1,24 @@
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The top part of this file contains all the application-specific config
+# settings.  Everything beyond that is generic and will be the same for
+# every application you use this makefile template for.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 #-----------------------------------------------------------------------------
-# These are the variables that are specific to your program
+# This is the base name of the executable file
 #-----------------------------------------------------------------------------
 EXE = pcitool
 #-----------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------
-# Find out what kind of hardware we're compiling on
+# This is a list of directories that have compilable code in them.  If there
+# are no subdirectories, this line is must SUBDIRS = .
 #-----------------------------------------------------------------------------
-PLATFORM := $(shell uname)
+SUBDIRS = . 
+#-----------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------
 # For x86, declare whether to emit 32-bit or 64-bit code
@@ -20,16 +31,6 @@ X86_TYPE = 64
 C_STD = c99
 CPP_STD = c++17
 
-#-----------------------------------------------------------------------------
-# Declare where the object files get created
-#-----------------------------------------------------------------------------
-X86_OBJ_DIR = obj_x86
-
-#-----------------------------------------------------------------------------
-# Tell 'make' what suffixes will appear in make rules
-#-----------------------------------------------------------------------------
-.SUFFIXES:
-.SUFFIXES: .o .c .cpp
 
 #-----------------------------------------------------------------------------
 # Declare the compile-time flags that are common between all platforms
@@ -44,47 +45,69 @@ CXXFLAGS =	\
 -DLINUX 
 
 #-----------------------------------------------------------------------------
-# If there was no goal on the command line, the default goal depends
-# on what platform we're running on
+# Special compile time flags for ARM targets
 #-----------------------------------------------------------------------------
-ifeq ($(.DEFAULT_GOAL),)
-    ifeq ($(PLATFORM), Linux)
-        .DEFAULT_GOAL := x86
-    endif
-endif
+ARMFLAGS = -march=armv7-a -mfpu=neon -mfloat-abi=hard -Wno-psabi
 
+#-----------------------------------------------------------------------------
+# If there is no target on the command line, this is the target we use
+#-----------------------------------------------------------------------------
+.DEFAULT_GOAL := x86
 
 #-----------------------------------------------------------------------------
 # Define the name of the compiler and what "build all" means for our platform
 #-----------------------------------------------------------------------------
-ifeq ($(PLATFORM), Linux)
-    ALL       = x86 
-    X86_CC    = $(CC)
-    X86_CXX   = $(CXX)
-    X86_STRIP = strip
-endif
+ALL       = x86 arm
+ARM_CC    = arm-none-linux-gnueabihf-gcc
+ARM_CXX   = arm-none-linux-gnueabihf-g++
+ARM_STRIP = arm-none-linux-gnueabihf-strip
+X86_CC    = $(CC)
+X86_CXX   = $(CXX)
+X86_STRIP = strip
 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#    Below this point there should be nothing you need to configure for
+#    your specific application.
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #-----------------------------------------------------------------------------
-# We're going to compile every .c and .cpp file in this folder
+# Declare where the object files get created
 #-----------------------------------------------------------------------------
-C_SRC_FILES := $(wildcard *.c)
-CPP_SRC_FILES := $(wildcard *.cpp)
+ARM_OBJ_DIR := obj_arm
+X86_OBJ_DIR := obj_x86
 
+#-----------------------------------------------------------------------------
+# Always run the recipe to make the following targets
+#-----------------------------------------------------------------------------
+.PHONY: $(X86_OBJ_DIR) $(ARM_OBJ_DIR) 
+
+#-----------------------------------------------------------------------------
+# We're going to compile every .c and .cpp file in each directory
+#-----------------------------------------------------------------------------
+C_SRC_FILES   := $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*.c))
+CPP_SRC_FILES := $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*.cpp))
+
+#-----------------------------------------------------------------------------
+# In the source files, normalize "./filename" to just "filename"
+#-----------------------------------------------------------------------------
+C_SRC_FILES   := $(subst ./,,$(C_SRC_FILES))
+CPP_SRC_FILES := $(subst ./,,$(CPP_SRC_FILES))
 
 #-----------------------------------------------------------------------------
 # Create the base-names of the object files
 #-----------------------------------------------------------------------------
-C_OBJ   = $(C_SRC_FILES:.c=.o)
-CPP_OBJ = $(CPP_SRC_FILES:.cpp=.o)
-OBJ_FILES = ${C_OBJ} ${CPP_OBJ}
-
+C_OBJ     := $(C_SRC_FILES:.c=.o)
+CPP_OBJ   := $(CPP_SRC_FILES:.cpp=.o)
+OBJ_FILES := ${C_OBJ} ${CPP_OBJ}
 
 #-----------------------------------------------------------------------------
 # We are going to keep x86 and ARM object files in separate sub-directories
 #-----------------------------------------------------------------------------
-X86_OBJS = $(addprefix $(X86_OBJ_DIR)/,$(OBJ_FILES))
-ARM_OBJS = $(addprefix $(ARM_OBJ_DIR)/,$(OBJ_FILES))
+X86_OBJS := $(addprefix $(X86_OBJ_DIR)/,$(OBJ_FILES))
+ARM_OBJS := $(addprefix $(ARM_OBJ_DIR)/,$(OBJ_FILES))
 
 
 #-----------------------------------------------------------------------------
@@ -108,9 +131,16 @@ $(ARM_OBJ_DIR)/%.o : %.c
 #-----------------------------------------------------------------------------
 # This rule builds the x86 executable from the object files
 #-----------------------------------------------------------------------------
-$(EXE) : $(X86_OBJS)
+$(EXE).x86 : $(X86_OBJS)
 	$(X86_CXX) -m$(X86_TYPE) -pthread -o $@ $(X86_OBJS)
-	$(X86_STRIP) $(EXE)
+	$(X86_STRIP) $(EXE).x86
+
+#-----------------------------------------------------------------------------
+# This rule builds the ARM executable from the object files
+#-----------------------------------------------------------------------------
+$(EXE).arm : $(ARM_OBJS)
+	$(ARM_CXX)  -pthread $(ARMFLAGS) -o $@ $(ARM_OBJS) 
+	$(ARM_STRIP) $(EXE).arm
 
 
 #-----------------------------------------------------------------------------
@@ -118,30 +148,34 @@ $(EXE) : $(X86_OBJS)
 #-----------------------------------------------------------------------------
 all:	$(ALL)
 
+#-----------------------------------------------------------------------------
+# This target builds just the ARM executable
+#-----------------------------------------------------------------------------
+arm:	$(ARM_OBJ_DIR) $(EXE).arm  
 
 #-----------------------------------------------------------------------------
 # This target builds just the x86 executable
 #-----------------------------------------------------------------------------
-x86:	mkdirs $(EXE)
+x86:	$(X86_OBJ_DIR) $(EXE).x86
 
 #-----------------------------------------------------------------------------
-# This target configures the object file directories
+# These targets makes all neccessary folders for object files
 #-----------------------------------------------------------------------------
 $(X86_OBJ_DIR):
-	@mkdir $(X86_OBJ_DIR)
+	@for subdir in $(SUBDIRS); do \
+	    mkdir -p -m 777 $(X86_OBJ_DIR)/$$subdir ;\
+	done
 
-
-#-----------------------------------------------------------------------------
-# This target configured the object file directories
-#-----------------------------------------------------------------------------
-mkdirs:	$(X86_OBJ_DIR)
-	@chmod 777 $(X86_OBJ_DIR)
+$(ARM_OBJ_DIR):
+	@for subdir in $(SUBDIRS); do \
+	    mkdir -p -m 777 $(ARM_OBJ_DIR)/$$subdir ;\
+	done
 
 #-----------------------------------------------------------------------------
 # This target removes all files that are created at build time
 #-----------------------------------------------------------------------------
 clean:
-	rm -rf Makefile.bak makefile.bak $(EXE).tgz $(EXE)
+	rm -rf Makefile.bak makefile.bak $(EXE).tgz $(EXE).x86 $(EXE).arm
 	rm -rf $(X86_OBJ_DIR) $(ARM_OBJ_DIR)
 
 #-----------------------------------------------------------------------------
@@ -155,15 +189,17 @@ tarball:	clean
 #-----------------------------------------------------------------------------
 # This target appends/updates the dependencies list at the end of this file
 #-----------------------------------------------------------------------------
-depend:	x86
-	makedepend -p$(X86_OBJ_DIR)/ -Y 2>/dev/null
-
+depend:
+	@makedepend    -p$(X86_OBJ_DIR)/ $(C_SRC_FILES) $(CPP_SRC_FILES) -Y 2>/dev/null
+	@makedepend -a -p$(ARM_OBJ_DIR)/ $(C_SRC_FILES) $(CPP_SRC_FILES) -Y 2>/dev/null
 
 #-----------------------------------------------------------------------------
 # Convenience target for displaying makefile variables 
 #-----------------------------------------------------------------------------
 debug:
-	@echo C_OBJ = ${C_OBJ}
-	@echo CPP_OBJ = ${CPP_OBJ}
-	@echo OBJ_FILES = ${OBJ_FILES}
-# DO NOT DELETE
+	@echo "SUBDIRS       = ${SUBDIRS}"
+	@echo "C_SRC_FILES   = ${C_SRC_FILES}"
+	@echo "CPP_SRC_FILES = ${CPP_SRC_FILES}"
+	@echo "C_OBJ         = ${C_OBJ}"
+	@echo "CPP_OBJ       = ${CPP_OBJ}"
+	@echo "OBJ_FILES     = ${OBJ_FILES}"
