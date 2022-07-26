@@ -28,7 +28,7 @@ X86_TYPE = 64
 #-----------------------------------------------------------------------------
 # These are the language standards we want to compile with
 #-----------------------------------------------------------------------------
-C_STD = c99
+C_STD = gnu99
 CPP_STD = c++17
 
 
@@ -57,7 +57,7 @@ ARMFLAGS = -march=armv7-a -mfpu=neon -mfloat-abi=hard -Wno-psabi
 #-----------------------------------------------------------------------------
 # Define the name of the compiler and what "build all" means for our platform
 #-----------------------------------------------------------------------------
-ALL       = x86 arm
+ALL       = x86 
 ARM_CC    = arm-none-linux-gnueabihf-gcc
 ARM_CXX   = arm-none-linux-gnueabihf-g++
 ARM_STRIP = arm-none-linux-gnueabihf-strip
@@ -203,15 +203,3 @@ debug:
 	@echo "C_OBJ         = ${C_OBJ}"
 	@echo "CPP_OBJ       = ${CPP_OBJ}"
 	@echo "OBJ_FILES     = ${OBJ_FILES}"
-
-
-
-# DO NOT DELETE
-
-obj_x86/PciDevice.o: PciDevice.h
-obj_x86/PhysMem.o: PhysMem.h
-obj_x86/main.o: PciDevice.h PhysMem.h
-
-obj_arm/PciDevice.o: PciDevice.h
-obj_arm/PhysMem.o: PhysMem.h
-obj_arm/main.o: PciDevice.h PhysMem.h
