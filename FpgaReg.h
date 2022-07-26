@@ -39,6 +39,8 @@ public:
     // Reads the register (and internally saves the returned value);
     uint32_t    read();
 
+    // Returns the AXI address of this register
+    uint32_t    axiAddress();
 
 
 protected:
@@ -49,8 +51,14 @@ protected:
     // This maps a REG_xxxx constant to an AXI address
     static std::map<fpgareg_t, int32_t> regMap_;
 
+    // The REG_xxxx constant that programmers use to identify a register
+    fpgareg_t regIndex_;
+
     // This is the AXI address of this register
     uint32_t axiAddress_;
+
+    // This is the value after the last read() or setField()
+    uint32_t regValue_;
 
 
 };

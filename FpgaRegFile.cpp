@@ -1,6 +1,13 @@
 
 //=================================================================================================
 // FpgaRegFile.cpp - Contains code for reading the FPGA register definitions file
+//
+// A "register definitions" file can contain blank lines, comments (beginning with '#' or '//'),
+// or any of these keywords:
+//
+//    base <IP_NAME> <base_address>
+//    reg <REG_NAME> <offset_from_base_address>
+//    field <FIELD_NAME> <rightmost_bit_number> <width_in_bits>
 //=================================================================================================
 #include <stdio.h>
 #include <fstream>
@@ -9,8 +16,6 @@
 #include <cstring>
 #include "FpgaReg.h"
 using namespace std;
-
-
 
 // Returns true if the character indicates the end of the line is reached
 static inline bool isEOL(char c) {return (c == 0 || c == 10 || c == 13);}
@@ -123,9 +128,9 @@ static void throw_runtime(const char* fmt, ...)
 
 
 //=================================================================================================
-// getConstantValue() - Returns the constant that corresponds to a given baseName/regName combo
+// getRegConstant() - Returns the constant that corresponds to a given baseName/regName combo
 //=================================================================================================
-static fpgareg_t getConstantValue(const string& baseName, const string& regName)
+static fpgareg_t getRegConstant(const string& baseName, const string& regName)
 {
     if (baseName == "PCIPROXY")
     {
@@ -149,8 +154,8 @@ static fpgareg_t getConstantValue(const string& baseName, const string& regName)
 //=================================================================================================
 void FpgaReg::readDefinitions(string filename)
 {
-    string   line, baseName = "", regName;
-    uint32_t baseAddr = 0, regOffset;
+    string   line, baseName = "", registerName;
+    uint32_t i, baseAddr = 0, registerOffset;
 
     // We haven't read in any lines of text yet
     lineNumber = 0;
@@ -185,32 +190,44 @@ void FpgaReg::readDefinitions(string filename)
         // Parse the line into tokens
         vector<string> tokens = parseTokens(p);
 
+        // The first token is the keyword. ("base", "reg", etc)
+        string& keyword = tokens[0];
+
         // If this is the "base" command, expect a name and an address
-        if (tokens[0] == "base")
+        if (keyword == "base")
         {
             if (tokens.size() < 3) throw_runtime("Syntax error");
             baseName = tokens[1];
-            baseAddr = stoul(tokens[2]);
+            baseAddr = stoul(tokens[2], 0, 0);
             continue;
         }
 
         // If this is a "reg" command, expect a name and an offset
-        if (tokens[1] == "reg")
+        if (keyword == "reg")
         {
             if (tokens.size() < 3) throw_runtime("Syntax error");
-            regName = tokens[1];
-            regOffset = stoul(tokens[2]);
-            auto constantValue = getConstantValue(baseName, regName);
-            regMap_[constantValue] = baseAddr + regOffset;
+            if (baseName.empty()) throw_runtime("No base defined");
+            registerName = tokens[1];
+            registerOffset = stoul(tokens[2], 0, 0);
+            auto regConstant = getRegConstant(baseName, registerName);
+            regMap_[regConstant] = baseAddr + registerOffset;
             continue;
         }
 
 
+        // If we get here, we don't recognize the keyword
+        throw_runtime("Syntax error");
 
-        printf("%s\n", p);
     }
 
-    exit(1);
+    // Check to ensure that every register has been defined
+    for (i=0; i<REG_COUNT; ++i)
+    {
+        if(regMap_.find((fpgareg_t)i) == regMap_.end())
+        {
+            throw_runtime("missing register constant %i", i);
+        }
+    }
 
 }
 //=================================================================================================

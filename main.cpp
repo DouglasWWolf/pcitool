@@ -6,6 +6,9 @@
 PciDevice pci;
 PhysMem   mem;
 
+
+FpgaReg pciProxyAddrH(REG_PCIPROXY_ADDRH);
+
 int main()
 {
    if (!pci.open(0x10ee, 0x903f))
@@ -15,21 +18,29 @@ int main()
 
    }
 
+   printf("A\n");
+
    // Set the user-space address where AXI registers live
    FpgaReg::setUserspaceAddr(pci.resourceList()[0].baseAddr);
 
+   printf("B\n");
    try
    {
-      FpgaReg::readDefinitions("register.dex");
+      FpgaReg::readDefinitions("register.def");
    }
    catch(std::runtime_error& ex)
    {
       
-      fprintf(stderr, "%s\n", ex.what());
+      fprintf(stderr, "Caught: %s\n", ex.what());
       exit(1);
    }
    
-   
+   printf("About to read\n");
+
+   printf("AXI 0x%0x = 0x%x\n", pciProxyAddrH.axiAddress(), pciProxyAddrH.read());
+
+   exit(1);
+
    if (!mem.map())
    {
       printf("Error : %s\n", mem.error());
