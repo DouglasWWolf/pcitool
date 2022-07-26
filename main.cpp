@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "PciDevice.h"
 #include "PhysMem.h"
+#include "FpgaReg.h"
 PciDevice pci;
 PhysMem   mem;
 
@@ -13,6 +14,21 @@ int main()
       exit(1);
 
    }
+
+   // Set the user-space address where AXI registers live
+   FpgaReg::setUserspaceAddr(pci.resourceList()[0].baseAddr);
+
+   try
+   {
+      FpgaReg::readDefinitions("register.dex");
+   }
+   catch(std::runtime_error& ex)
+   {
+      
+      fprintf(stderr, "%s\n", ex.what());
+      exit(1);
+   }
+   
    
    if (!mem.map())
    {
