@@ -15,7 +15,7 @@ uint8_t* FpgaReg::userspaceBaseAddress_;
 // This maps a REG_xxxx constant to an AXI address
 map<fpgareg_t, int32_t> FpgaReg::regMap_;
 
-const uint32_t UNMAPPED = 0xFFFFFFFF;
+static const uint32_t UNMAPPED = 0xFFFFFFFF;
 
 //=================================================================================================
 // setUserspaceAddress() - Sets the base address (in user-space) where all AXI registers are 
@@ -33,8 +33,14 @@ void FpgaReg::setUserspaceAddr(uint8_t* userspaceAddress)
 //=================================================================================================
 FpgaReg::FpgaReg(fpgareg_t regIndex)
 {
-    axiAddress_ = UNMAPPED;
+    // If the registerMap has entries, look up this register-index, otherwise, mark
+    // this register as unmapped.
+    axiAddress_ = regMap_.empty() ? UNMAPPED : regMap_[regIndex];
+    
+    // Save the index of this register for posterity
     regIndex_   = regIndex;
+
+    // We don't yet know the real value of this FPGA register
     regValue_   = 0;
 }
 //=================================================================================================
@@ -59,7 +65,7 @@ uint32_t FpgaReg::axiAddress()
 //=================================================================================================
 uint32_t FpgaReg::read()
 {
-    // Read the AXI register and save its value
+    // Read the AXI register from the FPGA and save its value
     regValue_ =  *(uint32_t*)(userspaceBaseAddress_ + axiAddress()); 
 
     // Hand the saved value to the caller
@@ -67,4 +73,18 @@ uint32_t FpgaReg::read()
 }
 //=================================================================================================
 
+
+
+//=================================================================================================
+// write() - Writes a value to the AXI register via the PCIe bus
+//=================================================================================================
+void FpgaReg::write(uint32_t value)
+{
+    // Save the value of the register
+    regValue_ = value;
+
+    // Write this value to the AXI register in the FPGA
+    *(uint32_t*)(userspaceBaseAddress_ + axiAddress()) = regValue_; 
+}
+//=================================================================================================
 

@@ -36,8 +36,17 @@ public:
     // Constructor requires the AXI address of the register
     FpgaReg(fpgareg_t axiRegister);
 
+    // Allow "regVariableName = <value>"
+    FpgaReg&    operator=(uint32_t value) {write(value); return *this;};
+    
+    // Allow "uint32_t variableName = regVariableName"
+    operator uint32_t() {return read();}
+
     // Reads the register (and internally saves the returned value);
     uint32_t    read();
+
+    // Writes a value to the register
+    void        write(uint32_t value);
 
     // Returns the AXI address of this register
     uint32_t    axiAddress();

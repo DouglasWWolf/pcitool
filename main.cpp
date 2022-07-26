@@ -35,9 +35,10 @@ int main()
       exit(1);
    }
    
-   printf("About to read\n");
+   pciProxyAddrH = 32;
+   uint32_t value = pciProxyAddrH;
 
-   printf("AXI 0x%0x = 0x%x\n", pciProxyAddrH.axiAddress(), pciProxyAddrH.read());
+   printf("AXI 0x%0x = 0x%x\n", pciProxyAddrH.axiAddress(), value);
 
    exit(1);
 
