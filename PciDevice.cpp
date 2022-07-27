@@ -5,11 +5,29 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <stdarg.h>
 #include <string.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include "PciDevice.h"
 using namespace std;
+
+#define c(s) s.c_str()
+
+//=================================================================================================
+// throwRuntime() - Throws a runtime exception
+//=================================================================================================
+static void throwRuntime(const char* fmt, ...)
+{
+    char buffer[256];
+    va_list ap;
+    va_start(ap, fmt);
+    vsprintf(buffer, fmt, ap);
+    va_end(ap);
+
+    throw runtime_error(buffer);
+}
+//=================================================================================================
 
 
 //=================================================================================================
@@ -19,12 +37,9 @@ using namespace std;
 //
 // On Exit:  resource_ = each entry has userspace "baseAddr" filled in
 //=================================================================================================
-bool PciDevice::mapResources()
+void PciDevice::mapResources()
 {
     const char* filename = "/dev/mem";
-
-    // Assume for a moment that this routine will succeed
-    bool result = true;
 
     // These are the memory protection flags we'll use when mapping the device into memory
     const int protection = PROT_READ | PROT_WRITE;
@@ -36,8 +51,7 @@ bool PciDevice::mapResources()
     if (fd < 0)
     {
         close();
-        sprintf(errorMsg_, "Can't open %s", filename);
-        return false;        
+        throwRuntime("Can't open %s", filename);
     }
 
     // Loop through each entry in the list of memory-mappable resources for this PCI device
@@ -46,24 +60,20 @@ bool PciDevice::mapResources()
         // Map the resources of this PCI device's BAR into our user-space memory map
         void* ptr = ::mmap(0, bar.size, protection, MAP_SHARED, fd, bar.physAddr);
 
-        // If a mapping error occurs, unmap anything we already have mapped
-        if (ptr == MAP_FAILED)
+        // If a mapping error occurs, don't continue trying to map resources
+        if (ptr == MAP_FAILED) 
         {
-            sprintf(errorMsg_, "mmap failed on 0x%lx for size 0x%lx", bar.physAddr, bar.size);
+            ::close(fd);
             close();
-            result = false;
-            break;
+            throwRuntime("mmap failed on 0x%lx for size 0x%lx", bar.physAddr, bar.size);
         }
-
+        
         // Otherwise, save the user-space address that our PCI resource is mapped to
-        else bar.baseAddr = (uint8_t*)ptr;
+        bar.baseAddr = (uint8_t*)ptr;
     }
 
     // Clean up after ourselves
     ::close(fd);
-
-    // And tell the caller whether all of this device's PCI resources got mapped into user-space
-    return result;
 }
 //=================================================================================================
 
@@ -135,17 +145,13 @@ std::vector<PciDevice::resource_t> PciDevice::getResourceList(std::string device
     ifstream file(filename);
 
     // If we couldn't open the file, hand the caller an invalid value   
-    if (!file.is_open()) 
-    {
-        sprintf(errorMsg_, "Can't open %s", filename.c_str());
-        return result;
-    }
+    if (!file.is_open()) throwRuntime("Can't open %s", filename.c_str());
     
     // Loop through each line of the file...
     while (getline(file, line))
     {
         // Get pointers to the 1st and 2nd text fields of that line
-        const char* p1 = line.c_str();
+        const char* p1 = c(line);
         const char* p2 = strchr(p1, ' ');
         
         // Parse the physical starting and ending address of this memory-mappable resource
@@ -163,7 +169,7 @@ std::vector<PciDevice::resource_t> PciDevice::getResourceList(std::string device
     }
 
     // If there are no memory-mappable resources, create an error message
-    if (result.empty()) sprintf(errorMsg_, "Device contains no memory-mappable resources");
+    if (result.empty()) throwRuntime("Device contains no memory-mappable resources");
 
     // Hand the caller the list of resources that can be memory mapped for this PCI device
     return result;
@@ -185,7 +191,7 @@ std::vector<PciDevice::resource_t> PciDevice::getResourceList(std::string device
 //
 // Note:    If this routine returns 'false', an ASCII error message is in errorMsg_
 //=================================================================================================
-bool PciDevice::open(int vendorID, int deviceID, string deviceDir)
+void PciDevice::open(int vendorID, int deviceID, string deviceDir)
 {
     string  dirName;
 
@@ -221,19 +227,12 @@ bool PciDevice::open(int vendorID, int deviceID, string deviceDir)
     }
 
     // If we couldn't find a device with that vendor ID and device ID, complain
-    if (!found)
-    {
-        sprintf(errorMsg_, "No PCI device found for vendor=0x%X, device=0x%X", vendorID, deviceID);
-        return false;
-    }
+    if (!found) throwRuntime("No PCI device found for vendor=0x%X, device=0x%X", vendorID, deviceID);
 
     // Fetch the physical address and size of each resource (i.e. BAR) that device supports
     resource_ = getResourceList(dirName);
 
-    // If there are no memory-mappable resources for this PCI device, tell the caller
-    if (resource_.empty()) return false;
-
     // Memory map each of the PCI device resources the caller asked us to
-    return mapResources();
+    mapResources();
 }
 //=================================================================================================

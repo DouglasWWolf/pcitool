@@ -23,7 +23,7 @@ public:
     struct resource_t {uint8_t* baseAddr; size_t size; off_t physAddr;};
 
     // Opens a connection to a PCIe device
-    bool    open(int vendorID, int deviceID, std::string deviceDir = "");
+    void    open(int vendorID, int deviceID, std::string deviceDir = "");
 
     // Fetches the list of memory mappable resources
     std::vector<resource_t>& resourceList() {return resource_;}
@@ -31,20 +31,14 @@ public:
     // Stop access to the PCI device
     void    close();
 
-    // Fetches an error message after a failed "open()"
-    const char* error() {return errorMsg_;}
-
 protected:
 
     // Fetches the list of memory-mappable resources
     std::vector<resource_t> getResourceList(std::string deviceDir);
 
     // Memory maps the resources whose definitions are in resource_
-    bool    mapResources();
+    void mapResources();
 
     // Contains one entry for each resource (i.e, BAR) that is configured in the PCI device
     std::vector<resource_t> resource_;
-
-    // Contains the error message after a call to "open" fails
-    char    errorMsg_[256];
 };
