@@ -1,16 +1,21 @@
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 #include "PciDevice.h"
 #include "PhysMem.h"
 #include "FpgaReg.h"
 PciDevice pci;
 PhysMem   mem;
 
+#define ENTRIES (1024*1024)
+uint32_t buffer[ENTRIES];
 
 FpgaReg pciProxyAddrH(REG_PCIPROXY_ADDRH);
 
 int main()
 {
+   for (int i=0;i<ENTRIES;++i) buffer[i] = i;
+
    if (!pci.open(0x10ee, 0x903f))
    {
       printf("Error : %s\n", pci.error());
@@ -18,12 +23,22 @@ int main()
 
    }
 
-   printf("A\n");
-
    // Set the user-space address where AXI registers live
    FpgaReg::setUserspaceAddr(pci.resourceList()[0].baseAddr);
 
-   printf("B\n");
+
+   uint32_t* dest = (uint32_t*)pci.resourceList()[2].baseAddr;
+   
+   *dest = 37;
+   printf("dest = %i\n", *dest);
+   exit(1);
+
+   memcpy(dest, buffer, sizeof(buffer));
+   exit(1);
+
+
+
+
    try
    {
       FpgaReg::readDefinitions("register.def");
@@ -35,7 +50,8 @@ int main()
       exit(1);
    }
    
-   pciProxyAddrH = 32;
+   pciProxyAddrH = 0;
+   pciProxyAddrH.setField(FLD_PCIPROXY_ADDRH_mid, 0xFFFFFFFF);
    uint32_t value = pciProxyAddrH;
 
    printf("AXI 0x%0x = 0x%x\n", pciProxyAddrH.axiAddress(), value);

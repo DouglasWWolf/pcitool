@@ -137,7 +137,7 @@ static fpgareg_t getRegConstant(const string& baseName, const string& regName)
         if (regName == "DATA" ) return REG_PCIPROXY_DATA;
         if (regName == "ADDRH") return REG_PCIPROXY_ADDRH;
         if (regName == "ADDRL") return REG_PCIPROXY_ADDRL;
-        throw_runtime("Uknown register %s:%s", c(baseName), c(regName));
+        throw_runtime("Unknown register %s:%s", c(baseName), c(regName));
     }
 
     // If we get here, the definitions file contains and unknown base name
@@ -150,12 +150,45 @@ static fpgareg_t getRegConstant(const string& baseName, const string& regName)
 
 
 //=================================================================================================
+// getFldConstant() - Returns the constant that corresponds to a given field name
+//=================================================================================================
+static fpgafld_t getFldConstant(const string& baseName, const string& regName, const string& fldName)
+{
+    // Fetch the name of the register we're working with
+    string reg = baseName + "_" + regName;
+
+    if (reg  == "PCIPROXY_ADDRH")
+    {
+        if (fldName == "btm") return FLD_PCIPROXY_ADDRH_btm;
+        if (fldName == "top") return FLD_PCIPROXY_ADDRH_top;
+        if (fldName == "mid") return FLD_PCIPROXY_ADDRH_mid;
+        goto error;
+    }
+
+error:
+
+    // If we get here, the definitions file contains and unknown base name
+    throw_runtime("Unknown field %s_%s_%s", c(baseName), c(regName), c(fldName));
+
+    // We'll never get here, but this keeps the compiler happy
+    return (fpgafld_t)-1;
+}
+//=================================================================================================
+
+
+
+
+
+//=================================================================================================
 // readDefinitions() - Reads and parses the file that contains AXI register definitions.
 //=================================================================================================
 void FpgaReg::readDefinitions(string filename)
 {
     string   line, baseName = "", registerName;
     uint32_t i, baseAddr = 0, registerOffset;
+    fpgareg_t regConstant = (fpgareg_t)0;
+    field_desc_t fd;
+    
 
     // We haven't read in any lines of text yet
     lineNumber = 0;
@@ -209,11 +242,24 @@ void FpgaReg::readDefinitions(string filename)
             if (baseName.empty()) throw_runtime("No base defined");
             registerName = tokens[1];
             registerOffset = stoul(tokens[2], 0, 0);
-            auto regConstant = getRegConstant(baseName, registerName);
-            regMap_[regConstant] = baseAddr + registerOffset;
+            regConstant = getRegConstant(baseName, registerName);
+            fd.axiAddr = regMap_[regConstant] = baseAddr + registerOffset;
             continue;
         }
 
+        // If this is a "field" command, expect a name, bit-position, and field-width
+        if (keyword == "field")
+        {
+            if (tokens.size() < 4) throw_runtime("Syntax error");
+            string& fieldName = tokens[1];
+            fd.bitPos = stoul(tokens[2], 0, 0);
+            fd.width  = stoul(tokens[3], 0, 0);
+            fd.mask   = ((1 << fd.width) - 1) << fd.bitPos;
+            fpgafld_t fldConstant = getFldConstant(baseName, registerName, fieldName);
+            fldMap_[fldConstant] = fd;
+            continue;
+
+        }
 
         // If we get here, we don't recognize the keyword
         throw_runtime("Syntax error");
@@ -228,6 +274,17 @@ void FpgaReg::readDefinitions(string filename)
             throw_runtime("missing register constant %i", i);
         }
     }
+
+
+    // Check to ensure that every field has been defined
+    for (i=0; i<FLD_COUNT; ++i)
+    {
+        if(fldMap_.find((fpgafld_t)i) == fldMap_.end())
+        {
+            throw_runtime("missing field constant %i", i);
+        }
+    }
+
 
 }
 //=================================================================================================

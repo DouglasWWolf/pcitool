@@ -149,8 +149,8 @@ std::vector<PciDevice::resource_t> PciDevice::getResourceList(std::string device
         const char* p2 = strchr(p1, ' ');
         
         // Parse the physical starting and ending address of this memory-mappable resource
-        off_t starting_address = strtol(p1, 0, 0);
-        off_t ending_address   = strtol(p2, 0, 0);
+        off_t starting_address = strtoll(p1, 0, 0);
+        off_t ending_address   = strtoll(p2, 0, 0);
 
         // A starting address of 0 means "this line doesn't define a memory-mappable resource"
         if (starting_address == 0) continue;
