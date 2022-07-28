@@ -102,9 +102,9 @@ static vector<string> parseTokens(const char* in)
 
 
 //=================================================================================================
-// throw_runtime() - Throws a std::runtime_error exception
+// throwRuntime() - Throws a std::runtime_error exception
 //=================================================================================================
-static void throw_runtime(const char* fmt, ...)
+static void throwRuntime(const char* fmt, ...)
 {
     char message[1024];
     va_list ap;
@@ -137,11 +137,11 @@ static fpgareg_t getRegConstant(const string& baseName, const string& regName)
         if (regName == "DATA" ) return REG_PCIPROXY_DATA;
         if (regName == "ADDRH") return REG_PCIPROXY_ADDRH;
         if (regName == "ADDRL") return REG_PCIPROXY_ADDRL;
-        throw_runtime("Unknown register %s:%s", c(baseName), c(regName));
+        throwRuntime("Unknown register %s:%s", c(baseName), c(regName));
     }
 
     // If we get here, the definitions file contains and unknown base name
-    throw_runtime("Unknown base register %s", c(baseName));
+    throwRuntime("Unknown base register %s", c(baseName));
 
     // We'll never get here, but this keeps the compiler happy
     return (fpgareg_t)-1;
@@ -168,7 +168,7 @@ static fpgafld_t getFldConstant(const string& baseName, const string& regName, c
 error:
 
     // If we get here, the definitions file contains and unknown base name
-    throw_runtime("Unknown field %s_%s_%s", c(baseName), c(regName), c(fldName));
+    throwRuntime("Unknown field %s_%s_%s", c(baseName), c(regName), c(fldName));
 
     // We'll never get here, but this keeps the compiler happy
     return (fpgafld_t)-1;
@@ -200,7 +200,7 @@ void FpgaReg::readDefinitions(string filename)
     ifstream file(filename);
 
     // If we couldn't open the file, tell the caller
-    if (!file.is_open()) throw_runtime("Can't open");
+    if (!file.is_open()) throwRuntime("Can't open");
 
     // Loop through each line of the file
     while (getline(file, line))
@@ -229,7 +229,7 @@ void FpgaReg::readDefinitions(string filename)
         // If this is the "base" command, expect a name and an address
         if (keyword == "base")
         {
-            if (tokens.size() < 3) throw_runtime("Syntax error");
+            if (tokens.size() < 3) throwRuntime("Syntax error");
             baseName = tokens[1];
             baseAddr = stoul(tokens[2], 0, 0);
             continue;
@@ -238,8 +238,8 @@ void FpgaReg::readDefinitions(string filename)
         // If this is a "reg" command, expect a name and an offset
         if (keyword == "reg")
         {
-            if (tokens.size() < 3) throw_runtime("Syntax error");
-            if (baseName.empty()) throw_runtime("No base defined");
+            if (tokens.size() < 3) throwRuntime("Syntax error");
+            if (baseName.empty()) throwRuntime("No base defined");
             registerName = tokens[1];
             registerOffset = stoul(tokens[2], 0, 0);
             regConstant = getRegConstant(baseName, registerName);
@@ -250,7 +250,7 @@ void FpgaReg::readDefinitions(string filename)
         // If this is a "field" command, expect a name, bit-position, and field-width
         if (keyword == "field")
         {
-            if (tokens.size() < 4) throw_runtime("Syntax error");
+            if (tokens.size() < 4) throwRuntime("Syntax error");
             string& fieldName = tokens[1];
             fd.bitPos = stoul(tokens[2], 0, 0);
             fd.width  = stoul(tokens[3], 0, 0);
@@ -262,7 +262,7 @@ void FpgaReg::readDefinitions(string filename)
         }
 
         // If we get here, we don't recognize the keyword
-        throw_runtime("Syntax error");
+        throwRuntime("Syntax error");
 
     }
 
@@ -271,7 +271,7 @@ void FpgaReg::readDefinitions(string filename)
     {
         if(regMap_.find((fpgareg_t)i) == regMap_.end())
         {
-            throw_runtime("missing register constant %i", i);
+            throwRuntime("missing register constant %i", i);
         }
     }
 
@@ -281,7 +281,7 @@ void FpgaReg::readDefinitions(string filename)
     {
         if(fldMap_.find((fpgafld_t)i) == fldMap_.end())
         {
-            throw_runtime("missing field constant %i", i);
+            throwRuntime("missing field constant %i", i);
         }
     }
 

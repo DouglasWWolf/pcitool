@@ -3,15 +3,36 @@
 //=================================================================================================
 #include <unistd.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <sys/mman.h>
 #include <sys/fcntl.h>
 #include <string.h>
 #include <string>
 #include <fstream>
 #include "PhysMem.h"
+#include "FileDes.h"
 using namespace std;
 
 #define MALFORMED 0xFFFFFFFFFFFFFFFF
+
+
+
+//=================================================================================================
+// throwRuntime() - Throws a runtime exception
+//=================================================================================================
+static void throwRuntime(const char* fmt, ...)
+{
+    char buffer[256];
+    va_list ap;
+    va_start(ap, fmt);
+    vsprintf(buffer, fmt, ap);
+    va_end(ap);
+
+    throw runtime_error(buffer);
+}
+//=================================================================================================
+
+
 
 //=================================================================================================
 // parseKMG() - Examines a string for a delimeter, and parses the integer immediately after 
@@ -58,56 +79,32 @@ static uint64_t parseKMG(const char delimeter, const char* ptr)
 //
 // Passed: physAddr = The physical address to map into user-space
 //         size     = The size of the region to map, in bytes
-//
-// Returns: true on success, otherwise false
 //=================================================================================================
-bool PhysMem::map(uint64_t physAddr, size_t size)
+void PhysMem::map(uint64_t physAddr, size_t size)
 {
     const char* filename = "/dev/mem";
 
     // These are the memory protection flags we'll use when mapping the device into memory
     const int protection = PROT_READ | PROT_WRITE;
 
-    // Assume for a moment that this routine will succeed
-    bool result = true;
-
     // Unmap any memory we may already have mapped
     unmap();
 
     // Open the /dev/mem device
-    int fd = ::open(filename, O_RDWR| O_SYNC);
+    FileDes fd = ::open(filename, O_RDWR| O_SYNC);
 
     // If that open failed, we're done here
-    if (fd < 0)
-    {
-        sprintf(errorMsg_, "Can't open %s", filename);
-        return false;        
-    }
+    if (fd < 0) throwRuntime("Can't open %s", filename);
 
     // Map the memory
     void* ptr = mmap(0, size, protection, MAP_SHARED, fd, physAddr);
 
     // If mapping into user-space failed tell the caller
-    if (ptr == MAP_FAILED)
-    {
-        result = false;
-        sprintf(errorMsg_, "mmap failed");        
-    }
+    if (ptr == MAP_FAILED) throwRuntime("mmap failed");        
 
     // Otherwise, that mapping succeeded.  Record the userspace address and region size
-    else
-    {
-        userspaceAddr_ = ptr;        
-        mappedSize_    = size;
-    }
-
-
-    // We're done with "/dev/mem"
-    ::close(fd);
-
-    // Tell the caller whether or not this succeeded
-    return result;
-
+    userspaceAddr_ = ptr;        
+    mappedSize_    = size;
 }
 //=================================================================================================
 
@@ -115,7 +112,7 @@ bool PhysMem::map(uint64_t physAddr, size_t size)
 //=================================================================================================
 // map() - Automatically maps the region defined with "memmap=" in /proc/cmdline
 //=================================================================================================
-bool PhysMem::map()
+void PhysMem::map()
 {
     string line;
     
@@ -128,11 +125,7 @@ bool PhysMem::map()
     ifstream file(filename);
 
     // If we couldn't open the file, tell the caller
-    if (!file.is_open())
-    {
-        sprintf(errorMsg_, "Can't open %s", filename);
-        return false;        
-    }
+    if (!file.is_open()) throwRuntime("Can't open %s", filename);
     
     // Fetch the first line of the file
     getline(file, line);
@@ -141,11 +134,7 @@ bool PhysMem::map()
     const char* p = ::strstr(line.c_str(), "memmap=");
 
     // If we can't find "memmap=", something is awry
-    if (p == nullptr)
-    {
-        sprintf(errorMsg_, "malformed %s", filename);
-        return false;        
-    }
+    if (p == nullptr) throwRuntime("malformed %s", filename);
 
     // Fetch the value after the '='
     auto size = parseKMG('=', p);
@@ -154,14 +143,10 @@ bool PhysMem::map()
     auto physAddr = parseKMG('$', p);
 
     // If we couldn't parse one of those values, /proc/cmdline is malformed
-    if (physAddr == MALFORMED || size == MALFORMED)
-    {
-        sprintf(errorMsg_, "malformed %s", filename);
-        return false;        
-    }
+    if (physAddr == MALFORMED || size == MALFORMED) throwRuntime("malformed %s", filename);
 
     // Now go map this physical address into user-space
-    return map(physAddr, size);
+    map(physAddr, size);
 }
 //=================================================================================================
 

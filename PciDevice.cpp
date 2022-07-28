@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include "PciDevice.h"
+#include "FileDes.h"
 using namespace std;
 
 #define c(s) s.c_str()
@@ -45,7 +46,7 @@ void PciDevice::mapResources()
     const int protection = PROT_READ | PROT_WRITE;
 
     // Open the /dev/mem device
-    int fd = ::open(filename, O_RDWR| O_SYNC);
+    FileDes fd = ::open(filename, O_RDWR| O_SYNC);
 
     // If that open failed, we're done here
     if (fd < 0)
@@ -63,7 +64,6 @@ void PciDevice::mapResources()
         // If a mapping error occurs, don't continue trying to map resources
         if (ptr == MAP_FAILED) 
         {
-            ::close(fd);
             close();
             throwRuntime("mmap failed on 0x%lx for size 0x%lx", bar.physAddr, bar.size);
         }
@@ -71,9 +71,6 @@ void PciDevice::mapResources()
         // Otherwise, save the user-space address that our PCI resource is mapped to
         bar.baseAddr = (uint8_t*)ptr;
     }
-
-    // Clean up after ourselves
-    ::close(fd);
 }
 //=================================================================================================
 

@@ -43,11 +43,7 @@ void process()
 
    exit(1);
 
-   if (!mem.map())
-   {
-      printf("Error : %s\n", mem.error());
-      exit(1);
-   }
+   mem.map();
 
    uint32_t* p = (uint32_t*)mem.vptr();
 

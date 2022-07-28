@@ -20,10 +20,10 @@ public:
     ~PhysMem() {unmap();}
 
     // Call this to map a region of physical address space into user-space
-    bool    map(uint64_t physAddr, size_t size);
+    void    map(uint64_t physAddr, size_t size);
 
     // Automatically maps the region define with "memmap=" in /proc/cmdline
-    bool    map();
+    void    map();
 
     // Call these to return either a void* or a byte* in user-space
     uint8_t* bptr() {return (uint8_t*)userspaceAddr_;}
@@ -32,13 +32,7 @@ public:
     // Unmaps the address space if one has been mapped
     void    unmap();
 
-    // Fetches an error message after a failed "map()"
-    const char* error() {return errorMsg_;}
-
 protected:
-
-    // An ASCII error message if "map()" fails
-    char    errorMsg_[256];
 
     // If this is not null, it contains a pointer to the mapped addresses
     void*   userspaceAddr_;
