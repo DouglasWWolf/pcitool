@@ -22,7 +22,7 @@ using namespace std;
 //=================================================================================================
 static void throwRuntime(const char* fmt, ...)
 {
-    char buffer[256];
+    char buffer[1024];
     va_list ap;
     va_start(ap, fmt);
     vsprintf(buffer, fmt, ap);

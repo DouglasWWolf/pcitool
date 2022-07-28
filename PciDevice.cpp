@@ -20,7 +20,7 @@ using namespace std;
 //=================================================================================================
 static void throwRuntime(const char* fmt, ...)
 {
-    char buffer[256];
+    char buffer[1024];
     va_list ap;
     va_start(ap, fmt);
     vsprintf(buffer, fmt, ap);
@@ -122,7 +122,6 @@ void PciDevice::close()
 //
 // On Entry: deviceDir = the name of the device directory that contains the "resource" file
 //
-// If this routine returns an empty vector, errorMsg_ will contain the appropriate error message
 //
 // Notes: The resource file will contain 1 line of ASCII data for each potential mappable resource.
 //        Each line contains 3 fields separated one space character:
@@ -142,7 +141,7 @@ std::vector<PciDevice::resource_t> PciDevice::getResourceList(std::string device
     ifstream file(filename);
 
     // If we couldn't open the file, hand the caller an invalid value   
-    if (!file.is_open()) throwRuntime("Can't open %s", filename.c_str());
+    if (!file.is_open()) throwRuntime("Can't open %s", c(filename));
     
     // Loop through each line of the file...
     while (getline(file, line))
@@ -183,10 +182,6 @@ std::vector<PciDevice::resource_t> PciDevice::getResourceList(std::string device
 //         deviceID  = The device ID of the PCIe device we're looking for
 //         deviceDir = Name of the file-system directory where PCI device information can
 //                     be found.   If empty-string, a sensible default is used
-//
-// Returns: true, if the operation is a success, else false
-//
-// Note:    If this routine returns 'false', an ASCII error message is in errorMsg_
 //=================================================================================================
 void PciDevice::open(int vendorID, int deviceID, string deviceDir)
 {
