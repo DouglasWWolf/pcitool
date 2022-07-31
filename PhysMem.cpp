@@ -10,7 +10,6 @@
 #include <string>
 #include <fstream>
 #include "PhysMem.h"
-#include "FileDes.h"
 using namespace std;
 
 #define MALFORMED 0xFFFFFFFFFFFFFFFF
@@ -91,13 +90,16 @@ void PhysMem::map(uint64_t physAddr, size_t size)
     unmap();
 
     // Open the /dev/mem device
-    FileDes fd = ::open(filename, O_RDWR| O_SYNC);
+    int fd = ::open(filename, O_RDWR| O_SYNC);
 
     // If that open failed, we're done here
     if (fd < 0) throwRuntime("Can't open %s", filename);
 
     // Map the memory
     void* ptr = mmap(0, size, protection, MAP_SHARED, fd, physAddr);
+    
+    // We're done with /dev/mem
+    ::close(fd);
 
     // If mapping into user-space failed tell the caller
     if (ptr == MAP_FAILED) throwRuntime("mmap failed");        

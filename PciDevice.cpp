@@ -10,10 +10,44 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include "PciDevice.h"
-#include "FileDes.h"
 using namespace std;
 
 #define c(s) s.c_str()
+
+
+//=================================================================================================
+// FileDes - This is a standard Unix/Linux file descriptor that closes itself
+//           when it goes out of scope
+//=================================================================================================
+class FileDes
+{
+public:
+    // Constructor with no value
+    FileDes() {fd = -1;}
+
+    // Constructor with a file descriptor
+    FileDes(int value) {fd = value;}
+
+    // No copy or assignment constructor - objects of this class can't be copied
+    FileDes (const FileDes&) = delete;
+    FileDes& operator= (const FileDes&) = delete;
+
+    // Destructor - Closes the file descriptor
+    ~FileDes() {if (fd != -1) ::close(fd);}
+
+    // Assignment from an int
+    FileDes& operator=(int value) {fd=value; return *this;} 
+
+    // Conversion to an int
+    operator int() {return fd;}
+
+    // The actual file descriptor
+    int fd;
+};
+//=================================================================================================
+
+
+
 
 //=================================================================================================
 // throwRuntime() - Throws a runtime exception
@@ -196,7 +230,7 @@ void PciDevice::open(int vendorID, int deviceID, string deviceDir)
     // If the caller didn't specify a device-directory, use the default
     if (deviceDir.empty()) deviceDir = "/sys/bus/pci/devices";
 
-    // Loop through entry for each device in the specified directory...
+    // Loop through the entry for each device in the specified directory...
     for (auto const& entry : filesystem::directory_iterator(deviceDir)) 
     {
         // Ignore any directory entry that isn't itself a directory
@@ -221,10 +255,10 @@ void PciDevice::open(int vendorID, int deviceID, string deviceDir)
     // If we couldn't find a device with that vendor ID and device ID, complain
     if (!found) throwRuntime("No PCI device found for vendor=0x%X, device=0x%X", vendorID, deviceID);
 
-    // Fetch the physical address and size of each resource (i.e. BAR) that device supports
+    // Fetch the physical address and size of each resource (i.e. BAR) that our device supports
     resource_ = getResourceList(dirName);
 
-    // Memory map each of the PCI device resources the caller asked us to
+    // Memory map each of the PCI device resources into userspace
     mapResources();
 }
 //=================================================================================================
